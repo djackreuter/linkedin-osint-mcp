@@ -1,6 +1,6 @@
 from typing import Any
 import json
-import requests
+import httpx
 import os
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
@@ -10,7 +10,7 @@ mcp = FastMCP("linkedin_osint")
 load_dotenv()
 
 @mcp.tool()
-def gather_users(company_name: str) -> list:
+async def gather_users(company_name: str) -> dict:
     """Perform a google search to gather a list of company employees
 
     Args:
@@ -20,7 +20,7 @@ def gather_users(company_name: str) -> list:
     page = 1
 
     while True:
-        resp = perform_search(company_name, page)
+        resp = await perform_search(company_name, page)
 
         if resp.status_code != 200:
             return f"Error fetching results: {resp.text}"
@@ -33,10 +33,11 @@ def gather_users(company_name: str) -> list:
         users.append(parse_results(data))
         page += 1
 
-    return users
+    return { "users": users, "pages_searched": page }
 
 
-def perform_search(company_name: str, page: int) -> requests.Response:
+async def perform_search(company_name: str, page: int) -> Any:
+    """Make a request to the Serper API"""
     url = "https://google.serper.dev/search"
 
     payload = json.dumps({
@@ -50,11 +51,16 @@ def perform_search(company_name: str, page: int) -> requests.Response:
         "Content-Type": "application/json"
     }
 
-    resp = requests.post(url, headers=headers, data=payload)
-    return resp
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(url, headers=headers, data=payload)
+            return resp
+        except Exception as e:
+            return f"Error: {e}"
 
 
 def parse_results(data: dict) -> list:
+    """Parse results and return a list of users"""
     users = []
     for result in data["organic"]:
         users.append(result["title"])
