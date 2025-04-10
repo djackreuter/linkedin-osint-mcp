@@ -10,30 +10,32 @@ mcp = FastMCP("linkedin_osint")
 load_dotenv()
 
 @mcp.tool()
-async def gather_users(company_name: str) -> dict:
+async def gather_users(company_name: str, page: int) -> dict:
     """Perform a google search to gather a list of company employees
 
     Args:
         company_name: Company name to search for
+        page: Page number to begin search
+
+    Returns: A dict containing names of employees and metadata
     """
     users = []
-    page = 1
 
-    while True:
-        resp = await perform_search(company_name, page)
+    resp = await perform_search(company_name, page)
 
-        if resp.status_code != 200:
-            return f"Error fetching results: {resp.text}"
+    data = resp.json()
+    num_results = len(data["organic"])
+    if num_results == 0:
+        return "No results found"
 
-        data = resp.json()
-        num_results = len(data["organic"])
-        if num_results == 0:
-            break
+    users.extend(parse_results(data))
 
-        users.append(parse_results(data))
-        page += 1
-
-    return { "users": users, "pages_searched": page }
+    return {
+        "users": users,
+        "number_of_results": num_results,
+        "current_page": page,
+        "has_more": num_results > 0
+    }
 
 
 async def perform_search(company_name: str, page: int) -> Any:
@@ -54,9 +56,10 @@ async def perform_search(company_name: str, page: int) -> Any:
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.post(url, headers=headers, data=payload)
-            return resp
+            if resp.status_code == 200:
+                return resp
         except Exception as e:
-            return f"Error: {e}"
+            return f"Error fetching results: {e}"
 
 
 def parse_results(data: dict) -> list:
