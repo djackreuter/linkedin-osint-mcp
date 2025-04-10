@@ -16,9 +16,28 @@ def gather_users(company_name: str) -> list:
     Args:
         company_name: Company name to search for
     """
-
-    url = "https://google.serper.dev/search"
+    users = []
     page = 1
+
+    while True:
+        resp = perform_search(company_name, page)
+
+        if resp.status_code != 200:
+            return f"Error fetching results: {resp.text}"
+
+        data = resp.json()
+        num_results = len(data["organic"])
+        if num_results == 0:
+            break
+
+        users.append(parse_results(data))
+        page += 1
+
+    return users
+
+
+def perform_search(company_name: str, page: int) -> requests.Response:
+    url = "https://google.serper.dev/search"
 
     payload = json.dumps({
         "q": f"site:linkedin.com/in \"{company_name}\"",
@@ -32,11 +51,7 @@ def gather_users(company_name: str) -> list:
     }
 
     resp = requests.post(url, headers=headers, data=payload)
-    if resp.status_code != 200:
-        return f"Error fetching results: {resp.text}"
-
-    users = parse_results(resp.json())
-    return users
+    return resp
 
 
 def parse_results(data: dict) -> list:
