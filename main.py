@@ -20,13 +20,29 @@ async def gather_users(company_name: str, page: int) -> dict:
     Returns: A dict containing names of employees and metadata
     """
     users = []
+    num_results = 0
 
     resp = await perform_search(company_name, page)
+
+    if resp["error"]:
+        return {
+            "users": users,
+            "number_of_results": num_results,
+            "current_page": page,
+            "has_more": num_results > 0,
+            "error": resp["message"] 
+        }
 
     data = resp.json()
     num_results = len(data["organic"])
     if num_results == 0:
-        return "No results found"
+        return {
+            "users": users,
+            "number_of_results": num_results,
+            "current_page": page,
+            "has_more": num_results > 0,
+            "error": resp["message"] 
+        }
 
     users.extend(parse_results(data))
 
@@ -34,10 +50,12 @@ async def gather_users(company_name: str, page: int) -> dict:
         "users": users,
         "number_of_results": num_results,
         "current_page": page,
-        "has_more": num_results > 0
+        "has_more": num_results > 0,
+        "error": ""
     }
 
 
+@mcp.resource("search://{company_name}/{page}")
 async def perform_search(company_name: str, page: int) -> Any:
     """Make a request to the Serper API"""
     url = "https://google.serper.dev/search"
@@ -58,6 +76,8 @@ async def perform_search(company_name: str, page: int) -> Any:
             resp = await client.post(url, headers=headers, data=payload)
             if resp.status_code == 200:
                 return resp
+            elif resp.status_code != 200:
+                return { "error": True, "message": f"Error sending request! Status code: {resp.status_code}" }
         except Exception as e:
             return f"Error fetching results: {e}"
 
