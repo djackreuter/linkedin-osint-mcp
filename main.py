@@ -23,14 +23,13 @@ async def gather_users(company_name: str, page: int) -> dict:
     num_results = 0
 
     resp = await perform_search(company_name, page)
-
-    if resp["error"]:
+    if resp.status_code != 200:
         return {
             "users": users,
             "number_of_results": num_results,
             "current_page": page,
             "has_more": num_results > 0,
-            "error": resp["message"] 
+            "error": "Error fetching results"
         }
 
     data = resp.json()
@@ -41,7 +40,7 @@ async def gather_users(company_name: str, page: int) -> dict:
             "number_of_results": num_results,
             "current_page": page,
             "has_more": num_results > 0,
-            "error": resp["message"] 
+            "error": "No results found"
         }
 
     users.extend(parse_results(data))
@@ -62,7 +61,7 @@ async def perform_search(company_name: str, page: int) -> Any:
 
     payload = json.dumps({
         "q": f"site:linkedin.com/in \"{company_name}\"",
-        "num": 100,
+        "num": 10,
         "page": page
     })
 
@@ -74,10 +73,7 @@ async def perform_search(company_name: str, page: int) -> Any:
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.post(url, headers=headers, data=payload)
-            if resp.status_code == 200:
-                return resp
-            elif resp.status_code != 200:
-                return { "error": True, "message": f"Error sending request! Status code: {resp.status_code}" }
+            return resp
         except Exception as e:
             return f"Error fetching results: {e}"
 
